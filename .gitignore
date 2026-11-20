@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+config.local.yaml
+output/*
+!output/.gitkeep
+state/*
+!state/.gitkeep
+resumes/*
+!resumes/.gitkeep
+data/master.yaml
+data/backups/*
+!data/backups/.gitkeep

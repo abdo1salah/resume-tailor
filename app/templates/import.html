@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}Import resumes{% endblock %}
+{% block content %}
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="/"><span class="brand-mark">R</span> Resume Tailor</a>
+    <a class="btn secondary small" href="/">Back to tailoring</a>
+  </div>
+</header>
+
+<main class="container main">
+  <div class="layout">
+    <section class="card">
+      <h1>Build the master resume</h1>
+      <p class="muted">Select one or more PDF/DOCX files from <span class="mono">{{ resumes_dir }}</span>. The importer turns them into structured YAML, previews the result, and only writes after you confirm.</p>
+
+      {% if not files %}
+        <div class="notice warn">
+          <strong>No PDF or DOCX files found.</strong>
+          Copy a resume into <span class="mono">{{ resumes_dir }}</span>, then <a href="/import">refresh this page</a>.
+        </div>
+      {% else %}
+        <form id="import-form" autocomplete="off">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+            <label style="margin:0">Resume files</label>
+            <label class="check small"><input type="checkbox" id="select-all" checked> Select all</label>
+          </div>
+          <div class="stack" style="gap:8px">
+            {% for file in files %}
+              <label class="check" style="align-items:flex-start;border:1px solid var(--line);border-radius:9px;padding:10px;background:#fff">
+                <input class="file-check" type="checkbox" value="{{ file.name }}" checked>
+                <span style="flex:1">
+                  <span style="display:block;font-weight:650">{{ file.name }}</span>
+                  <span class="small muted">{{ file.suffix | upper }} · {{ file.size_kb }} KB · modified {{ file.modified }}</span>
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+
+          <div class="row" style="margin-top:16px">
+            <div>
+              <label for="mode">Import mode</label>
+              <select id="mode">
+                <option value="merge">Merge into the current master</option>
+                <option value="replace">Replace the current master</option>
+              </select>
+            </div>
+            <div class="checks">
+              <label class="check"><input type="checkbox" id="use-llm" checked> Use the model for extraction</label>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:14px">
+            <div>
+              <label for="provider">Provider</label>
+              <select id="provider">
+                {% for item in providers %}
+                  <option value="{{ item.name }}" {% if item.name == config.provider %}selected{% endif %}>
+                    {{ item.label }}{% if not item.configured %} — key missing{% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label for="model">Model</label>
+              <select id="model"></select>
+              <div id="model-hint" class="small muted" style="margin-top:5px"></div>
+            </div>
+          </div>
+
+          <div id="form-error" class="notice error hidden"></div>
+
+          <div style="margin-top:18px;display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+            <button class="btn" type="submit" id="write-btn" data-dry-run="false">Import and write master</button>
+            <button class="btn secondary" type="submit" id="preview-btn" data-dry-run="true">Preview only</button>
+            <span class="small muted">A timestamped backup is created before writing.</span>
+          </div>
+          <div id="progress" class="progress hidden">
+            <span class="spinner"></span>
+            <span id="progress-text">Reading resume files and extracting structured data. This usually takes 10–60 seconds per file.</span>
+          </div>
+        </form>
+
+        <div id="import-result" class="hidden" style="margin-top:20px"></div>
+      {% endif %}
+    </section>
+
+    <aside>
+      <div class="card">
+        <h2>Current master</h2>
+        <div class="kv" style="margin-top:10px">
+          <span class="k">Name</span><span>{{ summary.profile.name }}</span>
+          <span class="k">Headline</span><span>{{ summary.profile.headline or "—" }}</span>
+          <span class="k">Email</span><span>{{ summary.profile.email or "—" }}</span>
+          <span class="k">Links</span><span>{{ summary.profile.links | length }}</span>
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><b>{{ summary.counts.projects }}</b><span>projects</span></div>
+          <div class="stat"><b>{{ summary.counts.experience }}</b><span>experiences</span></div>
+          <div class="stat"><b>{{ summary.counts.skills }}</b><span>skill groups</span></div>
+        </div>
+        <p class="small muted" style="margin-top:12px">Target: <span class="mono">{{ master_path }}</span></p>
+      </div>
+
+      <div class="card">
+        <h2>How it works</h2>
+        <ul class="plain small muted">
+          <li>The model extracts facts into the master schema. If it fails, the built-in text parser is used.</li>
+          <li><strong>Merge</strong> adds new items and fills gaps without duplicating existing ones.</li>
+          <li><strong>Replace</strong> discards the current master and writes only what was imported.</li>
+          <li>Files stay in <span class="mono">{{ resumes_dir }}</span>; they are not modified or uploaded anywhere except your configured model.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Safety</h2>
+        <ul class="plain small muted">
+          <li>Preview first; nothing is written until the preview is confirmed.</li>
+          <li>Every write backs up the previous <span class="mono">master.yaml</span> to <span class="mono">data/backups/</span>.</li>
+          <li>Only files listed in the <span class="mono">resumes/</span> folder can be selected.</li>
+          <li>Import one person's resumes at a time.</li>
+        </ul>
+      </div>
+
+      {% if not nvidia_ready %}
+      <div class="notice warn">
+        <strong>NVIDIA key not detected.</strong> You can use Ollama locally, or add <span class="mono">NVIDIA_API_KEY</span> to <span class="mono">.env</span> and restart the app.
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const defaultModels = {{ default_models | tojson }};
+  const configured = {{ provider_configured | tojson }};
+  const providerEl = document.getElementById('provider');
+  const modelEl = document.getElementById('model');
+  const hintEl = document.getElementById('model-hint');
+  const form = document.getElementById('import-form');
+  const errorEl = document.getElementById('form-error');
+  const progressEl = document.getElementById('progress');
+  const progressText = document.getElementById('progress-text');
+  const resultEl = document.getElementById('import-result');
+  const selectAll = document.getElementById('select-all');
+  const buttons = [document.getElementById('write-btn'), document.getElementById('preview-btn')].filter(Boolean);
+
+  function setHint(text, kind) {
+    if (!hintEl) return;
+    hintEl.textContent = text || '';
+    hintEl.style.color = kind === 'error' ? 'var(--red)' : 'var(--muted)';
+  }
+
+  function fillModels(models, preferred) {
+    if (!modelEl) return;
+    modelEl.innerHTML = '';
+    const unique = [...new Set(models.filter(Boolean))];
+    if (preferred && !unique.includes(preferred)) unique.unshift(preferred);
+    if (!unique.length) {
+      const fallback = defaultModels[providerEl.value];
+      if (fallback) unique.push(fallback);
+    }
+    unique.forEach((name) => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      modelEl.appendChild(option);
+    });
+    if (preferred && unique.includes(preferred)) modelEl.value = preferred;
+  }
+
+  async function loadModels() {
+    if (!providerEl || !modelEl) return;
+    const provider = providerEl.value;
+    modelEl.innerHTML = '<option>Loading…</option>';
+    setHint('');
+    try {
+      const response = await fetch('/api/models?provider=' + encodeURIComponent(provider));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Could not list models.');
+      fillModels(data.models || [], defaultModels[provider]);
+      if (defaultModels[provider]) modelEl.value = defaultModels[provider];
+      setHint('');
+    } catch (error) {
+      fillModels([], defaultModels[provider]);
+      setHint(error.message + (defaultModels[provider] ? ' Using ' + defaultModels[provider] + '.' : ''), 'error');
+    }
+  }
+
+  if (providerEl) {
+    providerEl.addEventListener('change', loadModels);
+    loadModels();
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', () => {
+      document.querySelectorAll('.file-check').forEach((item) => {
+        item.checked = selectAll.checked;
+      });
+    });
+  }
+
+  function showError(message) {
+    errorEl.textContent = message;
+    errorEl.classList.remove('hidden');
+  }
+
+  function node(tag, text, className) {
+    const element = document.createElement(tag);
+    if (text) element.textContent = text;
+    if (className) element.className = className;
+    return element;
+  }
+
+  function addChips(container, title, items) {
+    if (!items || !items.length) return;
+    container.appendChild(node('h3', title));
+    const chips = node('div', '', 'chips');
+    chips.style.marginTop = '6px';
+    items.forEach((item) => chips.appendChild(node('span', item, 'chip')));
+    container.appendChild(chips);
+  }
+
+  function renderResult(data) {
+    resultEl.innerHTML = '';
+    resultEl.classList.remove('hidden');
+
+    const heading = data.dry_run ? 'Preview ready' : 'Master updated';
+    resultEl.appendChild(node('h2', heading));
+
+    const message = data.dry_run
+      ? 'Nothing was written. Review the summary, then use “Import and write master” to save it.'
+      : 'Wrote ' + (data.output_path || 'data/master.yaml') + '.';
+    resultEl.appendChild(node('p', message, 'small muted'));
+
+    if (data.backup_path) {
+      resultEl.appendChild(node('p', 'Backup: ' + data.backup_path, 'small muted mono'));
+    }
+
+    const profile = data.summary.profile;
+    resultEl.appendChild(
+      node('p', (profile.name || 'Unnamed') + (profile.headline ? ' — ' + profile.headline : ''), '')
+    );
+
+    const grid = node('div', '', 'stat-grid');
+    [
+      ['education', 'education'],
+      ['skills', 'skill groups'],
+      ['projects', 'projects'],
+      ['experience', 'experiences'],
+      ['extracurricular', 'activities'],
+      ['certifications', 'certifications'],
+    ].forEach(([key, label]) => {
+      const stat = node('div', '', 'stat');
+      stat.appendChild(node('b', String(data.summary.counts[key] || 0)));
+      stat.appendChild(node('span', label));
+      grid.appendChild(stat);
+    });
+    resultEl.appendChild(grid);
+
+    addChips(resultEl, 'Projects', data.summary.projects);
+    addChips(resultEl, 'Experience', data.summary.experience);
+    addChips(resultEl, 'Skill groups', data.summary.skills);
+
+    if (data.warnings && data.warnings.length) {
+      resultEl.appendChild(node('h3', 'Warnings'));
+      const notice = node('div', '', 'notice warn');
+      const list = node('ul', '', 'plain');
+      data.warnings.forEach((warning) => list.appendChild(node('li', warning)));
+      notice.appendChild(list);
+      resultEl.appendChild(notice);
+    }
+
+    const actions = node('div', '');
+    actions.style.marginTop = '14px';
+    const link = node('a', 'Continue to tailoring', 'btn');
+    link.href = '/';
+    actions.appendChild(link);
+    resultEl.appendChild(actions);
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errorEl.classList.add('hidden');
+      resultEl.classList.add('hidden');
+
+      const dryRun = event.submitter ? event.submitter.dataset.dryRun === 'true' : true;
+      const files = [...document.querySelectorAll('.file-check:checked')].map((item) => item.value);
+      if (!files.length) {
+        showError('Select at least one resume file.');
+        return;
+      }
+
+      const payload = {
+        files: files,
+        provider: providerEl.value,
+        model: modelEl.value,
+        mode: document.getElementById('mode').value,
+        use_llm: document.getElementById('use-llm').checked,
+        dry_run: dryRun
+      };
+
+      buttons.forEach((button) => { button.disabled = true; });
+      progressText.textContent = dryRun
+        ? 'Reading the selected files and building a preview. Nothing will be written.'
+        : 'Reading the selected files and updating the master resume. A backup will be created first.';
+      progressEl.classList.remove('hidden');
+
+      try {
+        const response = await fetch('/api/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Import failed.');
+        renderResult(data);
+        resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        buttons.forEach((button) => { button.disabled = false; });
+        progressEl.classList.add('hidden');
+      }
+    });
+  }
+</script>
+{% endblock %}

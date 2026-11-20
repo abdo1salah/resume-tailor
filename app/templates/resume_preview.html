@@ -1,0 +1,99 @@
+{% set p = resume.profile %}
+<div class="resume">
+  <div class="r-name">{{ p.name }}</div>
+  {% if p.headline %}<div class="r-headline">{{ p.headline }}</div>{% endif %}
+  <div class="r-contact">
+    {% set ns = namespace(has=false) %}
+    {% if p.phone %}{{ p.phone }}{% set ns.has = true %}{% endif %}
+    {% if p.email %}{% if ns.has %} | {% endif %}{{ p.email }}{% set ns.has = true %}{% endif %}
+    {% if p.location %}{% if ns.has %} | {% endif %}{{ p.location }}{% set ns.has = true %}{% endif %}
+    {% for link in p.links %}
+      {% if link.url %}{% if ns.has %} | {% endif %}<a href="{{ link.url }}">{{ link.label }}</a>{% set ns.has = true %}{% endif %}
+    {% endfor %}
+  </div>
+
+  {% if resume.summary %}
+    <div class="r-section">Summary</div>
+    <div class="r-summary">{{ resume.summary }}</div>
+  {% endif %}
+
+  {% if resume.education %}
+    <div class="r-section">Education</div>
+    {% for item in resume.education %}
+      <div class="r-line">
+        <div class="l"><strong>{{ item.institution }}</strong></div>
+        {% if item.dates %}<div class="r"><strong>{{ item.dates }}</strong></div>{% endif %}
+      </div>
+      {% if item.degree or item.details %}
+        <div class="r-line">
+          <div class="l">{{ item.degree }}</div>
+          {% if item.details %}<div class="r">{{ item.details | join(' | ') }}</div>{% endif %}
+        </div>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+
+  {% if resume.skills %}
+    <div class="r-section">Skills</div>
+    {% for group in resume.skills %}
+      <div class="r-skill"><strong>{{ group.category }}:</strong> {{ group.items | join(', ') }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if resume.projects %}
+    <div class="r-section">Projects</div>
+    {% for project in resume.projects %}
+      <div class="r-line">
+        <div class="l">
+          {% if project.link %}<a href="{{ project.link }}"><strong>{{ project.title }}</strong></a>{% else %}<strong>{{ project.title }}</strong>{% endif %}
+          {% if project.subtitle %}<strong> | {{ project.subtitle }}</strong>{% endif %}
+          {% if project.tech %}{% if project.subtitle %} | {{ project.tech | join(', ') }}{% else %}<span class="r-italic"> | {{ project.tech | join(', ') }}</span>{% endif %}{% endif %}
+        </div>
+      </div>
+      <ul class="r-bullets">
+        {% for bullet in project.bullets %}
+          <li>{% if bullet.lower().startswith('tech:') %}<strong>{{ bullet[:5] }}</strong>{{ bullet[5:] }}{% else %}{{ bullet }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+  {% endif %}
+
+  {% if resume.experience %}
+    <div class="r-section">Experience</div>
+    {% for item in resume.experience %}
+      <div class="r-line">
+        <div class="l"><strong>{{ item.title }}{% if item.organization %} | {{ item.organization }}{% endif %}</strong></div>
+        {% if item.dates %}<div class="r"><strong>| {{ item.dates }}</strong></div>{% endif %}
+      </div>
+      <ul class="r-bullets">
+        {% for bullet in item.bullets %}
+          <li>{% if bullet.lower().startswith('tech:') %}<strong>{{ bullet[:5] }}</strong>{{ bullet[5:] }}{% else %}{{ bullet }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+  {% endif %}
+
+  {% if resume.extracurricular %}
+    <div class="r-section">Extracurricular</div>
+    {% for item in resume.extracurricular %}
+      <div class="r-line">
+        <div class="l"><strong>{{ item.title }}{% if item.subtitle %} | {{ item.subtitle }}{% endif %}</strong></div>
+      </div>
+      <ul class="r-bullets">
+        {% for bullet in item.bullets %}
+          <li>{% if bullet.lower().startswith('tech:') %}<strong>{{ bullet[:5] }}</strong>{{ bullet[5:] }}{% else %}{{ bullet }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+  {% endif %}
+
+  {% if resume.certifications or resume.languages %}
+    <div class="r-section">Certifications &amp; Languages</div>
+    {% for cert in resume.certifications %}
+      <div class="r-small"><strong>{{ cert.name }}</strong>{% if cert.issuer %} – {{ cert.issuer }}{% endif %}</div>
+    {% endfor %}
+    {% if resume.languages %}
+      <div class="r-small"><strong>Languages:</strong> {{ resume.languages | join(' | ') }}</div>
+    {% endif %}
+  {% endif %}
+</div>

@@ -1,0 +1,225 @@
+version: 1
+profile:
+  name: Alex Morgan
+  headline: AI/ML Engineer
+  phone: "+1 555 0100"
+  email: alex.morgan@example.com
+  location: Remote
+  links:
+    - label: GitHub
+      url: https://example.com/github
+    - label: LinkedIn
+      url: https://example.com/linkedin
+
+education:
+  - institution: State Technical University
+    degree: B.Sc. Computer Engineering
+    dates: 2021 – 2025
+    details:
+      - "GPA: 3.8/4"
+
+skills:
+  - category: Generative AI / NLP
+    items:
+      - LLM applications
+      - RAG
+      - document ingestion
+      - chunking
+      - embeddings
+      - semantic search
+      - vector similarity search
+      - top-k retrieval
+      - context assembly
+      - prompt engineering
+      - grounded generation
+      - text classification
+  - category: Tools / Frameworks
+    items:
+      - OpenAI API
+      - Hugging Face
+      - Sentence Transformers
+      - pgvector
+      - LangChain
+      - LangGraph
+      - FastAPI
+      - PyTorch
+      - TensorFlow
+      - scikit-learn
+  - category: Backend / Data
+    items:
+      - Python
+      - SQL
+      - C++
+      - REST APIs
+      - PostgreSQL
+      - SQLAlchemy
+      - Redis
+      - WebSockets
+      - Docker
+      - Git
+      - Linux
+
+projects:
+  - id: document-qa-assistant
+    title: Document Q&A Assistant
+    subtitle: Capstone Project | A | RAG, FastAPI
+    link: https://example.com/projects/document-qa
+    tech:
+      - RAG
+      - FastAPI
+      - LangChain
+      - pgvector
+    tags:
+      - rag
+      - llm
+      - fastapi
+      - langchain
+      - pgvector
+      - embeddings
+    bullets:
+      - text: Built a retrieval-augmented question-answering service for internal documents using LangChain and FastAPI.
+        tags:
+          - rag
+          - langchain
+          - fastapi
+      - text: Implemented chunking, embedding generation, and top-k vector retrieval with pgvector and PostgreSQL.
+        tags:
+          - embeddings
+          - pgvector
+          - postgresql
+      - text: Added grounded answer generation and source citations so responses stay tied to the retrieved context.
+        tags:
+          - rag
+          - prompt-engineering
+          - grounded-generation
+
+  - id: issue-triage-agent
+    title: Issue Triage Agent
+    subtitle: Python, LangGraph, Docker, ChromaDB
+    link: https://example.com/projects/issue-triage
+    tech:
+      - Python
+      - LangGraph
+      - Docker
+      - ChromaDB
+    tags:
+      - python
+      - langgraph
+      - docker
+      - chromadb
+      - agents
+    bullets:
+      - text: Built a multi-agent workflow with LangGraph to classify, reproduce, and route software issues.
+        tags:
+          - langgraph
+          - agents
+          - python
+      - text: Implemented an isolated Docker sandbox for reproducible test runs and runtime error analysis.
+        tags:
+          - docker
+          - testing
+      - text: Added a ChromaDB index for retrieving related files and prior discussions during triage.
+        tags:
+          - chromadb
+          - retrieval
+
+  - id: research-report-agent
+    title: Research Report Agent
+    subtitle: Python, LangGraph, Flask, Ollama
+    link: https://example.com/projects/research-report
+    tech:
+      - Python
+      - LangGraph
+      - Flask
+      - Ollama
+    tags:
+      - python
+      - langgraph
+      - flask
+      - ollama
+      - agents
+    bullets:
+      - text: Architected a multi-agent assistant that plans, drafts, and reviews research reports.
+        tags:
+          - agents
+          - langgraph
+          - llm
+      - text: Integrated web and academic search APIs with automated citation extraction.
+        tags:
+          - python
+          - retrieval
+      - text: Added a local Ollama mode for offline report generation and evaluation.
+        tags:
+          - ollama
+          - llm
+
+experience:
+  - id: ml-intern-northstar
+    title: Machine Learning Intern
+    organization: Northstar Labs
+    dates: June 2024 – August 2024
+    location: Remote
+    tags:
+      - python
+      - pytorch
+      - machine-learning
+    bullets:
+      - text: Developed computer vision models for image classification, object detection, and semantic segmentation.
+        tags:
+          - pytorch
+          - computer-vision
+      - text: Implemented data augmentation and training pipelines for end-to-end deep learning experiments.
+        tags:
+          - pytorch
+          - machine-learning
+      - text: Evaluated model performance and documented reproducible training configurations.
+        tags:
+          - evaluation
+          - pytorch
+
+  - id: data-science-intern-acme
+    title: Data Science Intern
+    organization: Acme Health
+    dates: June 2023 – August 2023
+    location: Remote
+    tags:
+      - python
+      - scikit-learn
+      - sql
+    bullets:
+      - text: Engineered features and handled class imbalance for predictive modeling on tabular data.
+        tags:
+          - scikit-learn
+          - python
+      - text: Built reproducible regression and classification pipelines with strict version control.
+        tags:
+          - scikit-learn
+          - git
+      - text: Presented model results and error analysis to the data team.
+        tags:
+          - communication
+
+extracurricular:
+  - id: robotics-club
+    title: Robotics Club – Perception Team
+    subtitle: Won 2nd place at a regional robotics challenge
+    tags:
+      - robotics
+      - computer-vision
+    bullets:
+      - text: Optimized real-time sensor processing and object tracking for an autonomous robot.
+        tags:
+          - robotics
+          - computer-vision
+      - text: Worked with camera data, clustering, and bounding-box estimation under competition constraints.
+        tags:
+          - robotics
+          - perception
+
+certifications:
+  - name: Machine Learning Specialization
+    issuer: DeepLearning.AI
+
+languages:
+  - English (Native)
+  - Spanish (Professional Working Proficiency)

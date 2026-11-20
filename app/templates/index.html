@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}Resume Tailor{% endblock %}
+{% block content %}
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="/"><span class="brand-mark">R</span> Resume Tailor</a>
+    <span class="muted small">Fine-tune, don't rewrite.</span>
+  </div>
+</header>
+
+<main class="container main">
+  <div class="layout">
+    <section class="card">
+      <h1>Tailor an application</h1>
+      <p class="muted">Paste the job description. The app picks your strongest projects, lightly tunes the wording, and keeps every fact, link, and metric intact.</p>
+
+      <form id="tailor-form" autocomplete="off">
+        <label for="jd">Job description <span class="req">*</span></label>
+        <textarea id="jd" required minlength="90" placeholder="Paste the full job description here..."></textarea>
+
+        <div class="row" style="margin-top:14px">
+          <div>
+            <label for="company">Company <span class="req">*</span></label>
+            <input id="company" required placeholder="e.g. Siemens EDA">
+          </div>
+          <div>
+            <label for="role">Role</label>
+            <input id="role" placeholder="e.g. AI/ML SW Engineer">
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:14px">
+          <div>
+            <label for="recruiter_name">Recruiter name</label>
+            <input id="recruiter_name" placeholder="Optional">
+          </div>
+          <div>
+            <label for="recruiter_email">Recruiter email</label>
+            <input id="recruiter_email" type="email" placeholder="Optional">
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <label for="notes">Notes for the tailor</label>
+          <textarea id="notes" class="short" placeholder="Optional: emphasize computer vision, keep the robotics project first, avoid the extracurricular section..."></textarea>
+        </div>
+
+        <div class="row" style="margin-top:14px">
+          <div>
+            <label for="provider">Provider</label>
+            <select id="provider">
+              {% for item in providers %}
+                <option value="{{ item.name }}" {% if item.name == config.provider %}selected{% endif %}>
+                  {{ item.label }}{% if not item.configured %} — key missing{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="model">Model</label>
+            <select id="model"></select>
+            <div id="model-hint" class="small muted" style="margin-top:5px"></div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:14px">
+          <div>
+            <label for="intensity">Rewriting intensity</label>
+            <select id="intensity">
+              <option value="light" {% if config.tailoring.intensity == 'light' %}selected{% endif %}>Light — select and reorder only</option>
+              <option value="balanced" {% if config.tailoring.intensity == 'balanced' %}selected{% endif %}>Balanced — light rewording (default)</option>
+              <option value="strong" {% if config.tailoring.intensity == 'strong' %}selected{% endif %}>Strong — rewrite bullets, still factual</option>
+            </select>
+          </div>
+          <div class="checks">
+            <label class="check"><input type="checkbox" id="include_summary" {% if config.tailoring.include_summary %}checked{% endif %}> Add a short tailored summary</label>
+            <label class="check"><input type="checkbox" id="generate_email" checked> Write a recruiter email</label>
+          </div>
+        </div>
+
+        <div id="form-error" class="notice error hidden"></div>
+
+        <div style="margin-top:18px; display:flex; align-items:center; gap:14px">
+          <button class="btn" type="submit" id="submit-btn">Tailor resume</button>
+          <span class="small muted">No application files are written until you export.</span>
+        </div>
+        <div id="progress" class="progress hidden">
+          <span class="spinner"></span>
+          <span>Reading the job description and tuning your resume. This usually takes 10–60 seconds.</span>
+        </div>
+      </form>
+    </section>
+
+    <aside>
+      <div class="card">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px">
+          <h2>Master resume</h2>
+          <a class="btn secondary small" href="/import">Import resumes</a>
+        </div>
+        <p class="muted small" style="margin-top:6px">Source of truth: <span class="mono">data/master.yaml</span></p>
+        <div class="kv" style="margin-top:12px">
+          <span class="k">Name</span><span>{{ master.profile.name }}</span>
+          <span class="k">Headline</span><span>{{ master.profile.headline }}</span>
+          <span class="k">Links</span><span>{{ master.profile.links | map(attribute='label') | join(', ') }}</span>
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><b>{{ master.projects | length }}</b><span>projects</span></div>
+          <div class="stat"><b>{{ master.experience | length }}</b><span>experiences</span></div>
+          <div class="stat"><b>{{ master.skills | length }}</b><span>skill groups</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Output</h2>
+        <p class="small muted" style="margin-top:6px">Each application is written to a folder named after the company:</p>
+        <p class="mono" style="background:#f9fafb;border:1px solid var(--line);border-radius:8px;padding:9px;overflow:auto">{{ output_dir }}/&lt;Company&gt;/</p>
+        <ul class="plain small muted">
+          <li>Resume PDF (one page, links preserved)</li>
+          <li>Editable DOCX with the same links</li>
+          <li>Email .txt and .eml with the PDF attached</li>
+          <li>tailoring_report.md</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Guardrails</h2>
+        <ul class="plain small muted">
+          <li>Never adds a tool, employer, metric, or achievement that is not in your master resume.</li>
+          <li>Keeps your links, dates, GPA, and contact details unchanged.</li>
+          <li>Falls back to keyword matching if the model is unavailable.</li>
+          <li>Reviews the result for unsupported numbers before it can be exported.</li>
+        </ul>
+      </div>
+
+      {% if not nvidia_ready %}
+      <div class="notice warn">
+        <strong>NVIDIA key not detected.</strong> You can use Ollama locally, or add <span class="mono">NVIDIA_API_KEY</span> to <span class="mono">.env</span> and restart the app.
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const defaultModels = {{ default_models | tojson }};
+  const configured = {{ provider_configured | tojson }};
+  const providerEl = document.getElementById('provider');
+  const modelEl = document.getElementById('model');
+  const hintEl = document.getElementById('model-hint');
+  const form = document.getElementById('tailor-form');
+  const errorEl = document.getElementById('form-error');
+  const progressEl = document.getElementById('progress');
+  const submitBtn = document.getElementById('submit-btn');
+
+  function setHint(text, kind) {
+    hintEl.textContent = text || '';
+    hintEl.style.color = kind === 'error' ? 'var(--red)' : 'var(--muted)';
+  }
+
+  function fillModels(models, preferred) {
+    modelEl.innerHTML = '';
+    const unique = [...new Set(models.filter(Boolean))];
+    if (preferred && !unique.includes(preferred)) unique.unshift(preferred);
+    if (!unique.length) {
+      const fallback = defaultModels[providerEl.value];
+      if (fallback) unique.push(fallback);
+    }
+    unique.forEach((name) => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      modelEl.appendChild(option);
+    });
+    if (preferred && unique.includes(preferred)) {
+      modelEl.value = preferred;
+    }
+  }
+
+  async function loadModels() {
+    const provider = providerEl.value;
+    modelEl.innerHTML = '<option>Loading…</option>';
+    setHint('');
+    try {
+      const response = await fetch('/api/models?provider=' + encodeURIComponent(provider));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Could not list models.');
+      fillModels(data.models || [], defaultModels[provider]);
+      const defaultModel = defaultModels[provider];
+      if (defaultModel) modelEl.value = defaultModel;
+      setHint('');
+    } catch (error) {
+      fillModels([], defaultModels[provider]);
+      setHint(error.message + (defaultModels[provider] ? ' Using ' + defaultModels[provider] + '.' : ''), 'error');
+    }
+  }
+
+  providerEl.addEventListener('change', loadModels);
+  loadModels();
+
+  function showError(message) {
+    errorEl.textContent = message;
+    errorEl.classList.remove('hidden');
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    errorEl.classList.add('hidden');
+    const jd = document.getElementById('jd').value.trim();
+    const company = document.getElementById('company').value.trim();
+    if (jd.length < 90) {
+      showError('Please paste a fuller job description (at least ~90 characters).');
+      return;
+    }
+    if (!company) {
+      showError('Company name is required so the output folder is named correctly.');
+      return;
+    }
+    const payload = {
+      jd: jd,
+      company: company,
+      role: document.getElementById('role').value.trim(),
+      recruiter_name: document.getElementById('recruiter_name').value.trim(),
+      recruiter_email: document.getElementById('recruiter_email').value.trim(),
+      notes: document.getElementById('notes').value.trim(),
+      provider: providerEl.value,
+      model: modelEl.value,
+      intensity: document.getElementById('intensity').value,
+      include_summary: document.getElementById('include_summary').checked,
+      generate_email: document.getElementById('generate_email').checked
+    };
+
+    submitBtn.disabled = true;
+    progressEl.classList.remove('hidden');
+    try {
+      const response = await fetch('/api/tailor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Tailoring failed.');
+      window.location.href = data.review_url;
+    } catch (error) {
+      showError(error.message);
+      submitBtn.disabled = false;
+      progressEl.classList.add('hidden');
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,12 @@
+provider: nvidia
+models:
+  nvidia: nvidia/nemotron-3.5-bolt-e4b
+  ollama: qwen3:4b-instruct-32k
+tailoring:
+  intensity: balanced
+  max_projects: 3
+  max_experiences: 2
+  max_skill_groups: 3
+  max_bullets_per_item: 3
+  include_summary: false
+output_dir: output

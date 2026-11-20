@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% block title %}{{ run.tailored.report.company or run.request.company }} — Review{% endblock %}
+
+{% macro item_card(kind, item) %}
+<div class="item-card" data-kind="{{ kind }}">
+  <div class="item-head">
+    <input type="checkbox" data-enabled data-kind="{{ kind }}" data-id="{{ item.id }}" {% if item.enabled %}checked{% endif %}>
+    <div class="title">{{ item.title }}{% if item.subtitle %} <span class="muted" style="font-weight:400">| {{ item.subtitle }}</span>{% endif %}</div>
+  </div>
+  <div class="item-meta">
+    {% if item.link %}<span class="chip">link kept</span>{% endif %}
+    {% for tag in item.tech %}<span class="chip">{{ tag }}</span>{% endfor %}
+    {% if item.meta %}<span class="chip">{{ item.meta }}</span>{% endif %}
+  </div>
+  {% if item.reason %}<p class="small muted" style="margin:7px 0 0">{{ item.reason }}</p>{% endif %}
+  {% for bullet in item.bullets %}
+    <textarea data-bullets data-kind="{{ kind }}" data-id="{{ item.id }}" rows="2">{{ bullet }}</textarea>
+  {% endfor %}
+  {% if not item.bullets %}
+    <textarea data-bullets data-kind="{{ kind }}" data-id="{{ item.id }}" rows="2" placeholder="Add a bullet"></textarea>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="/"><span class="brand-mark">R</span> Resume Tailor</a>
+    <div style="display:flex; gap:9px; align-items:center">
+      <a class="btn secondary small" href="/">New application</a>
+      <button class="btn small" type="button" data-export>Export files</button>
+    </div>
+  </div>
+</header>
+
+<main class="container main">
+  <div class="card review-head">
+    <div>
+      <h1>{{ run.tailored.report.company or run.request.company }}{% if run.tailored.report.role or run.request.role %} <span class="muted" style="font-weight:400">— {{ run.tailored.report.role or run.request.role }}</span>{% endif %}</h1>
+      <div class="chips" style="margin-top:9px">
+        <span class="chip">{{ run.tailored.report.provider }}</span>
+        <span class="chip">{{ run.tailored.report.model }}</span>
+        <span class="chip">{{ 'LLM' if run.tailored.report.mode == 'llm' else 'keyword fallback' }}</span>
+        <span class="chip">target: 1 page</span>
+        {% if run.email %}<span class="chip matched">email drafted</span>{% endif %}
+      </div>
+    </div>
+    <div class="small muted" style="max-width:420px; text-align:right">
+      The preview is the AI draft. Uncheck anything you do not want and edit any bullet; the exported PDF and DOCX use your edits.
+    </div>
+  </div>
+
+  {% if run.tailored.report.mode == 'fallback' %}
+    <div class="notice warn"><strong>Keyword fallback used.</strong> The model was unavailable, so the selection was made by keyword overlap and your original bullets were preserved.</div>
+  {% endif %}
+
+  <div class="tabs">
+    <button class="tab active" type="button" data-tab="preview">Preview</button>
+    <button class="tab" type="button" data-tab="edit">Edit selection</button>
+    <button class="tab" type="button" data-tab="email">Email</button>
+    <button class="tab" type="button" data-tab="report">Match report</button>
+  </div>
+
+  <section class="tab-panel" id="tab-preview">
+    <div class="preview-wrap">
+      {{ preview | safe }}
+    </div>
+  </section>
+
+  <section class="tab-panel hidden" id="tab-edit">
+    <div class="edit-grid">
+      <div>
+        <div class="card">
+          <h2>Summary</h2>
+          <p class="small muted" style="margin-top:6px">Leave empty to omit the summary section.</p>
+          <textarea id="summary" class="short" style="margin-top:10px" placeholder="Optional 1–2 sentence summary">{{ run.tailored.summary or '' }}</textarea>
+        </div>
+
+        <div class="card">
+          <h2>Skill groups</h2>
+          <p class="small muted" style="margin-top:6px">Skill items are fixed; only the groups are selected.</p>
+          <div style="margin-top:10px">
+            {% for skill in skill_options %}
+              <label class="check" style="margin:7px 0">
+                <input type="checkbox" data-skill value="{{ skill.category }}" {% if skill.enabled %}checked{% endif %}>
+                {{ skill.category }}
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Extracurricular</h2>
+          <div style="margin-top:10px">
+            {% for item in edit_activities %}
+              {{ item_card('activities', item) }}
+            {% else %}
+              <p class="small muted">No extracurricular items in the master resume.</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>Projects</h2>
+          <p class="small muted" style="margin-top:6px">Selected projects appear first, in resume order.</p>
+          <div style="margin-top:10px">
+            {% for item in edit_projects %}
+              {{ item_card('projects', item) }}
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Experience</h2>
+          <div style="margin-top:10px">
+            {% for item in edit_experiences %}
+              {{ item_card('experiences', item) }}
+            {% else %}
+              <p class="small muted">No experience items in the master resume.</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel hidden" id="tab-email">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; gap:14px; align-items:center; flex-wrap:wrap">
+        <div>
+          <h2>Recruiter email</h2>
+          <p class="small muted" style="margin-top:6px">You send this yourself. Exporting writes a .txt copy and a .eml file with the PDF attached.</p>
+        </div>
+        <label class="check"><input type="checkbox" id="include_email" {% if include_email_default %}checked{% endif %}> Include email files</label>
+      </div>
+
+      <div class="row" style="margin-top:14px">
+        <div>
+          <label for="email_to">Recruiter email</label>
+          <input id="email_to" type="email" value="{{ (run.email.recruiter_email if run.email else run.request.recruiter_email) or '' }}" placeholder="Optional">
+        </div>
+        <div>
+          <label for="email_subject">Subject</label>
+          <input id="email_subject" value="{{ run.email.subject if run.email else '' }}" placeholder="Application for ...">
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <label for="email_body">Body</label>
+        <textarea id="email_body" style="min-height:300px" placeholder="{% if not run.email %}No email drafted yet. Click Generate email.{% endif %}">{{ run.email.body if run.email else '' }}</textarea>
+      </div>
+
+      <div style="display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap">
+        <button class="btn secondary small" type="button" id="generate-email">Generate email</button>
+        <span class="small muted" id="email-status">{% if run.email %}Drafted from the tailored resume.{% else %}The email is optional.{% endif %}</span>
+      </div>
+      <div id="email-error" class="notice error hidden"></div>
+    </div>
+  </section>
+
+  <section class="tab-panel hidden" id="tab-report">
+    <div class="edit-grid">
+      <div class="card">
+        <h2>Keyword match</h2>
+        <p class="small muted" style="margin-top:6px">Terms from the job description that are evidenced in your resume.</p>
+        <div class="chips" style="margin-top:10px">
+          {% for keyword in run.tailored.report.matched_keywords %}
+            <span class="chip matched">{{ keyword }}</span>
+          {% else %}
+            <span class="small muted">No matches detected.</span>
+          {% endfor %}
+        </div>
+
+        <h2 style="margin-top:20px">Gaps</h2>
+        <p class="small muted" style="margin-top:6px">Job requirements that are not evidenced in your master resume. Do not add them unless they are true.</p>
+        <div class="chips" style="margin-top:10px">
+          {% for keyword in run.tailored.report.missing_keywords %}
+            <span class="chip missing">{{ keyword }}</span>
+          {% else %}
+            <span class="small muted">No obvious gaps detected.</span>
+          {% endfor %}
+        </div>
+
+        {% if run.tailored.report.notes %}
+          <h2 style="margin-top:20px">How it was tuned</h2>
+          <p class="small" style="margin-top:7px">{{ run.tailored.report.notes }}</p>
+        {% endif %}
+
+        {% if run.tailored.report.warnings %}
+          <div class="notice warn" style="margin-top:18px">
+            <strong>Review notes</strong>
+            <ul class="plain small" style="margin-top:6px">
+              {% for warning in run.tailored.report.warnings %}
+                <li>{{ warning }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <h2>Selection</h2>
+        <div class="kv" style="margin-top:10px">
+          <span class="k">Provider</span><span>{{ run.tailored.report.provider }}</span>
+          <span class="k">Model</span><span>{{ run.tailored.report.model }}</span>
+          <span class="k">Mode</span><span>{{ run.tailored.report.mode }}</span>
+          <span class="k">Created</span><span>{{ run.created_at[:19] | replace('T', ' ') }} UTC</span>
+        </div>
+
+        <div style="margin-top:16px">
+          {% for selection in run.tailored.report.selections %}
+            <div style="padding:9px 0; border-top:1px solid var(--line)">
+              <div class="small"><strong>{{ selection.title }}</strong> <span class="chip" style="margin-left:4px">{{ selection.kind }}</span></div>
+              {% if selection.reason %}<div class="small muted" style="margin-top:3px">{{ selection.reason }}</div>{% endif %}
+            </div>
+          {% else %}
+            <p class="small muted">No selection notes.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="card hidden" id="export-result" style="margin-top:18px">
+    <h2>Exported</h2>
+    <p class="small muted" style="margin-top:6px" id="export-summary"></p>
+    <p class="mono" id="export-folder" style="background:#f9fafb;border:1px solid var(--line);border-radius:8px;padding:9px;overflow:auto"></p>
+    <div class="result-links" id="export-links"></div>
+    <div id="export-warnings"></div>
+  </div>
+
+  <div style="margin-top:18px; display:flex; gap:10px; align-items:center">
+    <button class="btn" type="button" data-export>Export files</button>
+    <span class="small muted">Writes PDF, DOCX{% if include_email_default %}, email files{% endif %} and a report to the company folder.</span>
+  </div>
+
+  <div id="export-error" class="notice error hidden"></div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const RUN_ID = {{ run.id | tojson }};
+  const RUN_HAS_EMAIL = {{ (run.email is not none) | tojson }};
+
+  document.querySelectorAll('.tab').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((item) => item.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.add('hidden'));
+      button.classList.add('active');
+      document.getElementById('tab-' + button.dataset.tab).classList.remove('hidden');
+    });
+  });
+
+  document.querySelectorAll('input[data-enabled]').forEach((checkbox) => {
+    const sync = () => {
+      const card = checkbox.closest('.item-card');
+      if (card) card.classList.toggle('item-off', !checkbox.checked);
+    };
+    checkbox.addEventListener('change', sync);
+    sync();
+  });
+
+  function collectItems(kind) {
+    return [...document.querySelectorAll(`.item-card[data-kind="${kind}"]`)].map((card) => {
+      const checkbox = card.querySelector('input[data-enabled]');
+      const id = checkbox.dataset.id;
+      const bullets = [...card.querySelectorAll('textarea[data-bullets]')]
+        .map((area) => area.value.trim())
+        .filter(Boolean);
+      return { id: id, enabled: checkbox.checked, bullets: bullets };
+    });
+  }
+
+  function exportPayload() {
+    return {
+      projects: collectItems('projects'),
+      experiences: collectItems('experiences'),
+      activities: collectItems('activities'),
+      skills: [...document.querySelectorAll('input[data-skill]:checked')].map((item) => item.value),
+      summary: document.getElementById('summary').value.trim(),
+      include_email: document.getElementById('include_email').checked,
+      email: {
+        subject: document.getElementById('email_subject').value.trim(),
+        body: document.getElementById('email_body').value.trim(),
+        recruiter_email: document.getElementById('email_to').value.trim()
+      }
+    };
+  }
+
+  function make(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function showExportResult(data) {
+    document.getElementById('export-result').classList.remove('hidden');
+    document.getElementById('export-summary').textContent =
+      (data.pages === 1 ? 'One-page resume generated.' : data.pages + '-page resume generated.') +
+      (data.trimmed ? ' Content was trimmed to fit.' : '');
+    document.getElementById('export-folder').textContent = data.folder;
+
+    const links = document.getElementById('export-links');
+    links.innerHTML = '';
+    (data.files || []).forEach((file) => {
+      const anchor = make('a', 'btn secondary small', file.name);
+      anchor.href = file.url;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener';
+      links.appendChild(anchor);
+    });
+
+    const warningsBox = document.getElementById('export-warnings');
+    warningsBox.innerHTML = '';
+    if (data.warnings && data.warnings.length) {
+      const notice = make('div', 'notice warn');
+      notice.appendChild(make('strong', '', 'Review notes'));
+      const list = make('ul', 'plain small');
+      data.warnings.forEach((warning) => list.appendChild(make('li', '', warning)));
+      notice.appendChild(list);
+      warningsBox.appendChild(notice);
+    }
+    document.getElementById('export-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  let exporting = false;
+  async function doExport() {
+    if (exporting) return;
+    exporting = true;
+    const errorBox = document.getElementById('export-error');
+    errorBox.classList.add('hidden');
+    const buttons = [...document.querySelectorAll('[data-export]')];
+    buttons.forEach((button) => { button.disabled = true; button.textContent = 'Exporting…'; });
+    try {
+      const response = await fetch('/api/export/' + RUN_ID, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(exportPayload())
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Export failed.');
+      showExportResult(data);
+      document.getElementById('email-status').textContent = data.email_saved ? 'Email files saved with the PDF.' : 'No email files saved.';
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.classList.remove('hidden');
+    } finally {
+      exporting = false;
+      buttons.forEach((button) => { button.disabled = false; button.textContent = 'Export files'; });
+    }
+  }
+
+  document.querySelectorAll('[data-export]').forEach((button) => {
+    button.addEventListener('click', doExport);
+  });
+
+  document.getElementById('generate-email').addEventListener('click', async () => {
+    const button = document.getElementById('generate-email');
+    const errorBox = document.getElementById('email-error');
+    const status = document.getElementById('email-status');
+    errorBox.classList.add('hidden');
+    button.disabled = true;
+    status.textContent = 'Writing the email…';
+    try {
+      const response = await fetch('/api/email/' + RUN_ID, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(exportPayload())
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Could not generate the email.');
+      document.getElementById('email_subject').value = data.email.subject || '';
+      document.getElementById('email_body').value = data.email.body || '';
+      if (data.email.recruiter_email) {
+        document.getElementById('email_to').value = data.email.recruiter_email;
+      }
+      document.getElementById('include_email').checked = true;
+      status.textContent = 'Email drafted. Review and edit it before exporting.';
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.classList.remove('hidden');
+      status.textContent = '';
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>
+{% endblock %}
